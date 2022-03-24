@@ -6,11 +6,9 @@
         {
             var remainingrequests = maxrequests - requestsdone;
 
-            context.Response.Headers.Add("Content-Type", "application/json");
             context.Response.Headers.Add("X-Rate-Limit-Limit", maxrequests.ToString());
             context.Response.Headers.Add("X-Rate-Limit-Remaining", remainingrequests.ToString());
             context.Response.Headers.Add("X-Rate-Limit-Reset", timewindow.ToString());
-
 
         }
     }
