@@ -31,30 +31,30 @@ namespace WebApiWithQuotas.RateLimit
                 return;
             }
 
-            var rlResult = GenerateClientKeyExtended(context, settings.RateLimitConfig);
-
             //var key = GenerateClientKey(context);
-            var key = rlResult.Item2;
-            var rlConfig = rlResult.Item1;
-
-            var clientStatistics = await GetClientStatisticsByKey(key);
-
-            if (clientStatistics != null && DateTime.UtcNow < clientStatistics.LastSuccessfulResponseTime.AddSeconds(rlConfig.TimeWindow) && clientStatistics.NumberOfRequestsCompletedSuccessfully == rlConfig.MaxRequests)
+            var (rlConfig, key) = GenerateClientKeyExtended(context, settings.RateLimitConfig);
+            if (rlConfig is not null)
             {
-                await context.Response.WriteAsJsonAsync(new QuotaExceededMessage { Message = "quota exceeded", RequestorType = rlConfig.Type });
-                context.Response.StatusCode = (int)HttpStatusCode.TooManyRequests;
-                return;
+                var clientStatistics = await GetClientStatisticsByKey(key);
+
+                if (clientStatistics != null && DateTime.UtcNow < clientStatistics.LastSuccessfulResponseTime.AddSeconds(rlConfig.TimeWindow) && clientStatistics.NumberOfRequestsCompletedSuccessfully == rlConfig.MaxRequests)
+                {
+                    await context.Response.WriteAsJsonAsync(new QuotaExceededMessage { Message = "quota exceeded", RequestorType = rlConfig.Type });
+                    context.Response.StatusCode = (int)HttpStatusCode.TooManyRequests;
+                    return;
+                }
+
+                await UpdateClientStatisticsStorage(key, rlConfig.MaxRequests, TimeSpan.FromSeconds(rlConfig.TimeWindow));
             }
 
-            await UpdateClientStatisticsStorage(key, rlConfig.MaxRequests, rlConfig.TimeWindow);
             await _next(context);
         }
 
         private static string GenerateClientKey(HttpContext context) => $"{context.Request.Path}_{context.Connection.RemoteIpAddress}";
 
-        private static Tuple<RateLimitConfig, string> GenerateClientKeyExtended(HttpContext context, List<RateLimitConfig> rlsettings)
+        private static (RateLimitConfig? rlConfig, string key) GenerateClientKeyExtended(HttpContext context, List<RateLimitConfig> rlsettings)
         {
-            RateLimitConfig ratelimitconfig = default(RateLimitConfig);
+            RateLimitConfig? ratelimitconfig = default;
             string ratelimitcachekey = "";
 
             var referer = "";
@@ -103,7 +103,7 @@ namespace WebApiWithQuotas.RateLimit
             if (String.IsNullOrEmpty(referer) && String.IsNullOrEmpty(loggeduser))
             {
                 ratelimitcachekey = $"{context.Request.Path}_{context.Connection.RemoteIpAddress}";
-                ratelimitconfig = rlsettings.Where(x => x.Type == "Anonymous").FirstOrDefault();
+                ratelimitconfig = rlsettings.FirstOrDefault(x => x.Type == "Anonymous");
             }
             //Case 2 Referer passed generate key with Referer
             else if (!String.IsNullOrEmpty(referer) && String.IsNullOrEmpty(loggeduser))
@@ -118,13 +118,18 @@ namespace WebApiWithQuotas.RateLimit
                 ratelimitcachekey = $"{loggeduser}";
                 ratelimitconfig = rlsettings.Where(x => x.Type == "Logged").FirstOrDefault();
             }
+            //No rate limit
+            else
+            {
+                return (null, "");
+            }
 
-            return Tuple.Create(ratelimitconfig, ratelimitcachekey);
+            return (ratelimitconfig, ratelimitcachekey);
         }
 
-        private async Task<ClientStatistics> GetClientStatisticsByKey(string key) => await _cache.GetCacheValueAsync<ClientStatistics>(key);
+        private async Task<ClientStatistics?> GetClientStatisticsByKey(string key) => await _cache.GetCacheValueAsync<ClientStatistics>(key);
 
-        private async Task UpdateClientStatisticsStorage(string key, int maxRequests, int timeWindow)
+        private async Task UpdateClientStatisticsStorage(string key, int maxRequests, TimeSpan timeWindow)
         {
             var clientStat = await _cache.GetCacheValueAsync<ClientStatistics>(key);
 
@@ -138,7 +143,7 @@ namespace WebApiWithQuotas.RateLimit
                 else
                     clientStat.NumberOfRequestsCompletedSuccessfully++;
 
-                await _cache.SetCahceValueAsync<ClientStatistics>(key, timeWindow, clientStat);
+                await _cache.SetCacheValueAsync<ClientStatistics>(key, timeWindow, clientStat);
             }
             else
             {
@@ -148,7 +153,7 @@ namespace WebApiWithQuotas.RateLimit
                     NumberOfRequestsCompletedSuccessfully = 1
                 };
 
-                await _cache.SetCahceValueAsync<ClientStatistics>(key, timeWindow, clientStatistics);
+                await _cache.SetCacheValueAsync(key, timeWindow, clientStatistics);
             }
 
         }
@@ -162,9 +167,8 @@ namespace WebApiWithQuotas.RateLimit
 
     public class QuotaExceededMessage
     {
-        public string Message { get; set; }
-        public string MoreInfos { get; set; }
-
-        public string RequestorType { get; set; }
+        public string? Message { get; set; }
+        public string? MoreInfos { get; set; }
+        public string? RequestorType { get; set; }
     }
 }

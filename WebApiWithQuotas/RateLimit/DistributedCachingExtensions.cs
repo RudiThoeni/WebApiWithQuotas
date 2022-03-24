@@ -4,20 +4,18 @@ namespace WebApiWithQuotas.RateLimit
 {
     public static class DistributedCachingExtensions
     {
-        public async static Task SetCahceValueAsync<T>(this IDistributedCache distributedCache, string key, T value, CancellationToken token = default(CancellationToken))
+        public async static Task SetCacheValueAsync<T>(this IDistributedCache distributedCache, string key, T value, CancellationToken token = default) where T : notnull
         {
             await distributedCache.SetAsync(key, value.ToByteArray(), token);
         }
 
-        public async static Task SetCahceValueAsync<T>(this IDistributedCache distributedCache, string key, int timewindow, T value, CancellationToken token = default(CancellationToken))
+        public async static Task SetCacheValueAsync<T>(this IDistributedCache distributedCache, string key, TimeSpan timewindow, T value, CancellationToken token = default) where T : notnull
         {
-            DistributedCacheEntryOptions options = new DistributedCacheEntryOptions();
-            options.AbsoluteExpiration = DateTimeOffset.Now.AddSeconds(timewindow);
-
+            var options = new DistributedCacheEntryOptions { AbsoluteExpiration = DateTimeOffset.Now.Add(timewindow) };
             await distributedCache.SetAsync(key, value.ToByteArray(), options, token);
         }
 
-        public async static Task<T> GetCacheValueAsync<T>(this IDistributedCache distributedCache, string key, CancellationToken token = default(CancellationToken)) where T : class
+        public async static Task<T?> GetCacheValueAsync<T>(this IDistributedCache distributedCache, string key, CancellationToken token = default(CancellationToken)) where T : class
         {
             var result = await distributedCache.GetAsync(key, token);
             return result.FromByteArray<T>();
