@@ -1,7 +1,9 @@
 ﻿using Microsoft.Extensions.Caching.Distributed;
+using Newtonsoft.Json;
 using System.IdentityModel.Tokens.Jwt;
 using System.Net;
 using System.Security.Claims;
+using System.Text;
 
 namespace WebApiWithQuotas.RateLimit
 {
@@ -36,17 +38,18 @@ namespace WebApiWithQuotas.RateLimit
             if (rlConfig is not null)
             {
                 var clientStatistics = await GetClientStatisticsByKey(key);
-
                 
-
                 await context.AddRateLimitHeaders(rlConfig.MaxRequests, clientStatistics == null ? 0 : clientStatistics.NumberOfRequestsCompletedSuccessfully, rlConfig.TimeWindow);
 
                 if (clientStatistics != null && DateTime.UtcNow < clientStatistics.LastSuccessfulResponseTime.AddSeconds(rlConfig.TimeWindow) && clientStatistics.NumberOfRequestsCompletedSuccessfully == rlConfig.MaxRequests)
                 {
-                    context.Response.Headers.Add("Content-Type", "application/json");
-                  
-                    await context.Response.WriteAsJsonAsync(new QuotaExceededMessage { Message = "quota exceeded", RequestorType = rlConfig.Type, RetryAfter = rlConfig.TimeWindow, RequestsDone = clientStatistics.NumberOfRequestsCompletedSuccessfully });
+                    //done by WriteasJson
+                    //context.Response.Headers.Add("Content-Type", "application/json");                  
                     context.Response.StatusCode = (int)HttpStatusCode.TooManyRequests;
+
+                    await context.Response.WriteAsJsonAsync(new QuotaExceededMessage { Message = "quota exceeded", RequestorType = rlConfig.Type, RetryAfter = rlConfig.TimeWindow, RequestsDone = clientStatistics.NumberOfRequestsCompletedSuccessfully });
+
+
                     return;
                 }
 
@@ -162,7 +165,12 @@ namespace WebApiWithQuotas.RateLimit
                 await _cache.SetCacheValueAsync(key, timeWindow, clientStatistics);
             }
 
-        }        
+        }
+
+        public static MemoryStream GenerateStreamFromString(string value)
+        {
+            return new MemoryStream(Encoding.UTF8.GetBytes(value ?? ""));
+        }
     }
 
     public class ClientStatistics
@@ -174,7 +182,10 @@ namespace WebApiWithQuotas.RateLimit
     public class QuotaExceededMessage
     {
         public string? Message { get; set; }
-        public string? MoreInfos { get; set; }
+        public string? MoreInfos { 
+            get {
+                return "https://github.com/noi-techpark/odh-docs/wiki/Api-Quota";
+                    } }
         public string? RequestorType { get; set; }
 
         public int RetryAfter { get; set; }
