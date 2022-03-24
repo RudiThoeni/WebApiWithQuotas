@@ -37,18 +37,14 @@ namespace WebApiWithQuotas.RateLimit
             {
                 var clientStatistics = await GetClientStatisticsByKey(key);
 
-                await context.AddRateLimitHeaders(rlConfig.MaxRequests, clientStatistics.NumberOfRequestsCompletedSuccessfully, rlConfig.TimeWindow);
+                
+
+                await context.AddRateLimitHeaders(rlConfig.MaxRequests, clientStatistics == null ? 0 : clientStatistics.NumberOfRequestsCompletedSuccessfully, rlConfig.TimeWindow);
 
                 if (clientStatistics != null && DateTime.UtcNow < clientStatistics.LastSuccessfulResponseTime.AddSeconds(rlConfig.TimeWindow) && clientStatistics.NumberOfRequestsCompletedSuccessfully == rlConfig.MaxRequests)
                 {
-                    //var remainingrequests = rlConfig.MaxRequests - clientStatistics.NumberOfRequestsCompletedSuccessfully;
-
-                    //context.Response.Headers.Add("Content-Type", "application/json");
-                    //context.Response.Headers.Add("X-Rate-Limit-Limit", rlConfig.MaxRequests.ToString());
-                    //context.Response.Headers.Add("X-Rate-Limit-Remaining", remainingrequests.ToString());
-                    //context.Response.Headers.Add("X-Rate-Limit-Reset", rlConfig.TimeWindow.ToString());
-
-
+                    context.Response.Headers.Add("Content-Type", "application/json");
+                  
                     await context.Response.WriteAsJsonAsync(new QuotaExceededMessage { Message = "quota exceeded", RequestorType = rlConfig.Type, RetryAfter = rlConfig.TimeWindow, RequestsDone = clientStatistics.NumberOfRequestsCompletedSuccessfully });
                     context.Response.StatusCode = (int)HttpStatusCode.TooManyRequests;
                     return;
