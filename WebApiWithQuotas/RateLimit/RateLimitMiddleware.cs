@@ -39,7 +39,15 @@ namespace WebApiWithQuotas.RateLimit
 
                 if (clientStatistics != null && DateTime.UtcNow < clientStatistics.LastSuccessfulResponseTime.AddSeconds(rlConfig.TimeWindow) && clientStatistics.NumberOfRequestsCompletedSuccessfully == rlConfig.MaxRequests)
                 {
-                    await context.Response.WriteAsJsonAsync(new QuotaExceededMessage { Message = "quota exceeded", RequestorType = rlConfig.Type });
+                    var remainingrequests = rlConfig.MaxRequests - clientStatistics.NumberOfRequestsCompletedSuccessfully;
+
+                    context.Response.Headers.Add("Content-Type", "application/json");
+                    context.Response.Headers.Add("X-Rate-Limit-Limit", rlConfig.MaxRequests.ToString());
+                    context.Response.Headers.Add("X-Rate-Limit-Remaining", remainingrequests.ToString());
+                    context.Response.Headers.Add("X-Rate-Limit-Reset", rlConfig.TimeWindow.ToString());
+
+
+                    await context.Response.WriteAsJsonAsync(new QuotaExceededMessage { Message = "quota exceeded", RequestorType = rlConfig.Type, RetryAfter = rlConfig.TimeWindow, RequestsDone = clientStatistics.NumberOfRequestsCompletedSuccessfully });
                     context.Response.StatusCode = (int)HttpStatusCode.TooManyRequests;
                     return;
                 }
@@ -156,7 +164,7 @@ namespace WebApiWithQuotas.RateLimit
                 await _cache.SetCacheValueAsync(key, timeWindow, clientStatistics);
             }
 
-        }
+        }        
     }
 
     public class ClientStatistics
@@ -170,5 +178,9 @@ namespace WebApiWithQuotas.RateLimit
         public string? Message { get; set; }
         public string? MoreInfos { get; set; }
         public string? RequestorType { get; set; }
+
+        public int RetryAfter { get; set; }
+
+        public int RequestsDone { get; set; }
     }
 }
