@@ -42,7 +42,7 @@ namespace WebApiWithQuotas.RateLimit
                 await context.AddRateLimitHeaders(rlConfig.MaxRequests, clientStatistics == null ? 0 : clientStatistics.NumberOfRequestsCompletedSuccessfully, rlConfig.TimeWindow);
 
                 if (clientStatistics != null)
-                    clientStatistics.LastSuccessfulResponseTimeList.RemoveAllExpiredResponseDateTimes(TimeSpan.FromSeconds(rlConfig.TimeWindow), DateTime.UtcNow);
+                    clientStatistics.LastSuccessfulResponseTimeList.RemoveAllExpiredResponseDateTimes(TimeSpan.FromSeconds(rlConfig.TimeWindow), clientStat.LastSuccessfulResponseTime);
 
 
                 if (clientStatistics != null && DateTime.UtcNow < clientStatistics.LastSuccessfulResponseTime.AddSeconds(rlConfig.TimeWindow) && clientStatistics.NumberOfRequestsCompletedSuccessfully == rlConfig.MaxRequests)
