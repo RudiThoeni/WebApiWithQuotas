@@ -39,21 +39,15 @@ namespace WebApiWithQuotas.RateLimit
             {
                 var clientStatistics = await GetClientStatisticsByKey(key);
                 
-                await context.AddRateLimitHeaders(rlConfig.MaxRequests, clientStatistics == null ? 0 : clientStatistics.NumberOfRequestsCompletedSuccessfully, rlConfig.TimeWindow);
+                await context.AddRateLimitHeaders(rlConfig.MaxRequests, clientStatistics == null ? 0 : clientStatistics.LastSuccessfulResponseTimeList.Count, rlConfig.TimeWindow);
 
-                //if (clientStatistics != null)
-                //    clientStatistics.LastSuccessfulResponseTimeList = RemoveAllExpiredResponseDateTimes(TimeSpan.FromSeconds(rlConfig.TimeWindow), DateTime.UtcNow.AddSeconds(-1 * ));
-
-
-                //if (clientStatistics != null && DateTime.UtcNow < clientStatistics.LastSuccessfulResponseTime.AddSeconds(rlConfig.TimeWindow) && clientStatistics.NumberOfRequestsCompletedSuccessfully == rlConfig.MaxRequests)
-                if (clientStatistics != null && clientStatistics.NumberOfRequestsCompletedSuccessfully == rlConfig.MaxRequests)
+                if (clientStatistics != null && clientStatistics.LastSuccessfulResponseTimeList.Count >= rlConfig.MaxRequests)
                 {
                     //done by WriteasJson
                     //context.Response.Headers.Add("Content-Type", "application/json");                  
                     context.Response.StatusCode = (int)HttpStatusCode.TooManyRequests;
 
                     await context.Response.WriteAsJsonAsync(new QuotaExceededMessage { Message = "quota exceeded", Policy = rlConfig.Type, RetryAfter = rlConfig.TimeWindow, RequestsDone = clientStatistics.NumberOfRequestsCompletedSuccessfully });
-
 
                     return;
                 }
@@ -149,27 +143,17 @@ namespace WebApiWithQuotas.RateLimit
 
             if (clientStat != null)
             {
-                clientStat.LastSuccessfulResponseTimeList.Add(DateTime.UtcNow);
-                clientStat.LastSuccessfulResponseTime = DateTime.UtcNow;
+                var now = DateTime.UtcNow;
 
-                clientStat.LastSuccessfulResponseTimeList = RemoveAllExpiredResponseDateTimes(clientStat.LastSuccessfulResponseTimeList, timeWindow);
+                clientStat.LastSuccessfulResponseTimeList.Add(now);                
+                clientStat.LastSuccessfulResponseTimeList = RemoveAllExpiredResponseDateTimes(clientStat.LastSuccessfulResponseTimeList, timeWindow, now);
 
-                //if (clientStat.NumberOfRequestsCompletedSuccessfully == maxRequests)
-                //    clientStat.NumberOfRequestsCompletedSuccessfully = 1;
-
-                //else
-                //    clientStat.NumberOfRequestsCompletedSuccessfully++;
-
-                //clientStat.NumberOfRequestsCompletedSuccessfully = clientStat.LastSuccessfulResponseTimeList.Count;
-                
                 await _cache.SetCacheValueAsync<ClientStatistics>(key, timeWindow, clientStat);
             }
             else
             {
                 var clientStatistics = new ClientStatistics
-                {
-                    LastSuccessfulResponseTime = DateTime.UtcNow,
-                    //NumberOfRequestsCompletedSuccessfully = 1,
+                {                    
                     LastSuccessfulResponseTimeList = new List<DateTime>() { DateTime.UtcNow }
                 };
 
@@ -177,9 +161,9 @@ namespace WebApiWithQuotas.RateLimit
             }
         }
 
-        private static List<DateTime> RemoveAllExpiredResponseDateTimes(List<DateTime> list, TimeSpan timeWindow)
+        private static List<DateTime> RemoveAllExpiredResponseDateTimes(List<DateTime> list, TimeSpan timeWindow, DateTime dateto)
         {
-            var validfrom = DateTime.UtcNow.Subtract(timeWindow);
+            var validfrom = dateto.Subtract(timeWindow);
 
             //Remove all no more valid Requests                      
             return list.Where(x => x >= validfrom).ToList();
@@ -196,13 +180,6 @@ namespace WebApiWithQuotas.RateLimit
         public ClientStatistics()
         {
             LastSuccessfulResponseTimeList = new List<DateTime>();
-        }
-
-        public DateTime LastSuccessfulResponseTime { get; set; }
-        public int NumberOfRequestsCompletedSuccessfully { 
-            get {
-                return LastSuccessfulResponseTimeList.Count; 
-            }
         }
 
         public List<DateTime> LastSuccessfulResponseTimeList { get; set; }
