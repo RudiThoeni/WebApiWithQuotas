@@ -45,7 +45,8 @@ namespace WebApiWithQuotas.RateLimit
                 //    clientStatistics.LastSuccessfulResponseTimeList = RemoveAllExpiredResponseDateTimes(TimeSpan.FromSeconds(rlConfig.TimeWindow), DateTime.UtcNow.AddSeconds(-1 * ));
 
 
-                if (clientStatistics != null && DateTime.UtcNow < clientStatistics.LastSuccessfulResponseTime.AddSeconds(rlConfig.TimeWindow) && clientStatistics.NumberOfRequestsCompletedSuccessfully == rlConfig.MaxRequests)
+                //if (clientStatistics != null && DateTime.UtcNow < clientStatistics.LastSuccessfulResponseTime.AddSeconds(rlConfig.TimeWindow) && clientStatistics.NumberOfRequestsCompletedSuccessfully == rlConfig.MaxRequests)
+                if (clientStatistics != null && clientStatistics.NumberOfRequestsCompletedSuccessfully == rlConfig.MaxRequests)
                 {
                     //done by WriteasJson
                     //context.Response.Headers.Add("Content-Type", "application/json");                  

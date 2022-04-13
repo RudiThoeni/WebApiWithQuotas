@@ -13,10 +13,10 @@ namespace WebApiWithQuotas.RateLimit
         {
             //var options = new DistributedCacheEntryOptions { AbsoluteExpiration = DateTimeOffset.Now.Add(timewindow) };
 
-            //var options = new DistributedCacheEntryOptions { AbsoluteExpirationRelativeToNow = timewindow };
-            //await distributedCache.SetAsync(key, value.ToByteArray(), options, token);
+            var options = new DistributedCacheEntryOptions { AbsoluteExpirationRelativeToNow = timewindow };
+            await distributedCache.SetAsync(key, value.ToByteArray(), options, token);
 
-            await distributedCache.SetAsync(key, value.ToByteArray(), token);
+            //await distributedCache.SetAsync(key, value.ToByteArray(), token);
         }
 
         public async static Task<T?> GetCacheValueAsync<T>(this IDistributedCache distributedCache, string key, CancellationToken token = default(CancellationToken)) where T : class
