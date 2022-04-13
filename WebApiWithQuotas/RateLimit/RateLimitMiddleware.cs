@@ -144,9 +144,10 @@ namespace WebApiWithQuotas.RateLimit
 
             if (clientStat != null)
             {
-                clientStat.LastSuccessfulResponseTimeList.Add(DateTime.Now);
+                clientStat.LastSuccessfulResponseTimeList.Add(DateTime.UtcNow);
+                clientStat.LastSuccessfulResponseTime = DateTime.UtcNow;
 
-                clientStat.LastSuccessfulResponseTimeList.RemoveAllExpiredResponseDateTimes(timeWindow);
+                clientStat.LastSuccessfulResponseTimeList.RemoveAllExpiredResponseDateTimes(timeWindow, clientStat.LastSuccessfulResponseTime);
 
                 //if (clientStat.NumberOfRequestsCompletedSuccessfully == maxRequests)
                 //    clientStat.NumberOfRequestsCompletedSuccessfully = 1;
@@ -156,7 +157,7 @@ namespace WebApiWithQuotas.RateLimit
 
                 clientStat.NumberOfRequestsCompletedSuccessfully = clientStat.LastSuccessfulResponseTimeList.Count;
 
-                clientStat.LastSuccessfulResponseTime = DateTime.UtcNow;
+                
 
                 await _cache.SetCacheValueAsync<ClientStatistics>(key, timeWindow, clientStat);
             }
@@ -209,13 +210,10 @@ namespace WebApiWithQuotas.RateLimit
 
     public static class DateTimeListExtensions
     {
-        public static void RemoveAllExpiredResponseDateTimes(this List<DateTime> list, TimeSpan timeWindow)
+        public static void RemoveAllExpiredResponseDateTimes(this List<DateTime> list, TimeSpan timeWindow, DateTime lastsuccessfulresponsetime)
         {
-            //Remove all no more valid Requests
-            var lastdate = list.OrderByDescending(x => x).FirstOrDefault();
-            var validdate = lastdate.Subtract(timeWindow);
-            list = list.Where(x => x <= lastdate && x >= validdate).ToList();
-
+            //Remove all no more valid Requests                      
+            list = list.Where(x => x >= lastsuccessfulresponsetime).ToList();
         }
     }
 }
