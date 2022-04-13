@@ -47,7 +47,7 @@ namespace WebApiWithQuotas.RateLimit
                     //context.Response.Headers.Add("Content-Type", "application/json");                  
                     context.Response.StatusCode = (int)HttpStatusCode.TooManyRequests;
 
-                    await context.Response.WriteAsJsonAsync(new QuotaExceededMessage { Message = "quota exceeded", RequestorType = rlConfig.Type, RetryAfter = rlConfig.TimeWindow, RequestsDone = clientStatistics.NumberOfRequestsCompletedSuccessfully });
+                    await context.Response.WriteAsJsonAsync(new QuotaExceededMessage { Message = "quota exceeded", Policy = rlConfig.Type, RetryAfter = rlConfig.TimeWindow, RequestsDone = clientStatistics.NumberOfRequestsCompletedSuccessfully });
 
 
                     return;
@@ -144,15 +144,17 @@ namespace WebApiWithQuotas.RateLimit
 
             if (clientStat != null)
             {
-                //
+                clientStat.LastSuccessfulResponseTimeList.Add(DateTime.Now);
 
+                clientStat.LastSuccessfulResponseTimeList.RemoveAllExpiredResponseDateTimes(timeWindow);
 
-        
-                if (clientStat.NumberOfRequestsCompletedSuccessfully == maxRequests)
-                    clientStat.NumberOfRequestsCompletedSuccessfully = 1;
+                //if (clientStat.NumberOfRequestsCompletedSuccessfully == maxRequests)
+                //    clientStat.NumberOfRequestsCompletedSuccessfully = 1;
 
-                else
-                    clientStat.NumberOfRequestsCompletedSuccessfully++;
+                //else
+                //    clientStat.NumberOfRequestsCompletedSuccessfully++;
+
+                clientStat.NumberOfRequestsCompletedSuccessfully = clientStat.LastSuccessfulResponseTimeList.Count;
 
                 clientStat.LastSuccessfulResponseTime = DateTime.UtcNow;
 
@@ -163,13 +165,14 @@ namespace WebApiWithQuotas.RateLimit
                 var clientStatistics = new ClientStatistics
                 {
                     LastSuccessfulResponseTime = DateTime.UtcNow,
-                    NumberOfRequestsCompletedSuccessfully = 1
+                    NumberOfRequestsCompletedSuccessfully = 1,
+                    LastSuccessfulResponseTimeList = new List<DateTime>() { DateTime.UtcNow }
                 };
 
                 await _cache.SetCacheValueAsync(key, timeWindow, clientStatistics);
             }
 
-        }
+        }        
 
         public static MemoryStream GenerateStreamFromString(string value)
         {
@@ -178,22 +181,41 @@ namespace WebApiWithQuotas.RateLimit
     }
 
     public class ClientStatistics
-    {
+    {      
+        public ClientStatistics()
+        {
+            LastSuccessfulResponseTimeList = new List<DateTime>();
+        }
+
         public DateTime LastSuccessfulResponseTime { get; set; }
         public int NumberOfRequestsCompletedSuccessfully { get; set; }
+
+        public List<DateTime> LastSuccessfulResponseTimeList { get; set; }
     }
 
     public class QuotaExceededMessage
     {
         public string? Message { get; set; }
-        public string? MoreInfos { 
+        public string? Hint { 
             get {
                 return "https://github.com/noi-techpark/odh-docs/wiki/Api-Quota";
                     } }
-        public string? RequestorType { get; set; }
+        public string? Policy { get; set; }
 
         public int RetryAfter { get; set; }
 
         public int RequestsDone { get; set; }
+    }
+
+    public static class DateTimeListExtensions
+    {
+        public static void RemoveAllExpiredResponseDateTimes(this List<DateTime> list, TimeSpan timeWindow)
+        {
+            //Remove all no more valid Requests
+            var lastdate = list.OrderByDescending(x => x).FirstOrDefault();
+            var validdate = lastdate.Subtract(timeWindow);
+            list = list.Where(x => x <= lastdate && x >= validdate).ToList();
+
+        }
     }
 }
