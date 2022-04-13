@@ -144,13 +144,17 @@ namespace WebApiWithQuotas.RateLimit
 
             if (clientStat != null)
             {
-                clientStat.LastSuccessfulResponseTime = DateTime.UtcNow;
+                //
 
+
+        
                 if (clientStat.NumberOfRequestsCompletedSuccessfully == maxRequests)
                     clientStat.NumberOfRequestsCompletedSuccessfully = 1;
 
                 else
                     clientStat.NumberOfRequestsCompletedSuccessfully++;
+
+                clientStat.LastSuccessfulResponseTime = DateTime.UtcNow;
 
                 await _cache.SetCacheValueAsync<ClientStatistics>(key, timeWindow, clientStat);
             }
